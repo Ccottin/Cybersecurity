@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+import fetch from "node-fetch";
+
+
+class	webScrapper{
+	flag = 0;
+	url = undefined;
+	validFlags = "rlp";
+	
+	constructor(args) {
+		args.forEach((arg) => this.checkInput(arg));
+	}
+
+
+	checkInput(arg) {
+		if (arg.charAt(0) === '-')
+		{
+			arg.forEach((charToFind) => {
+				if (this.validFlags.indexOf(charToFind) === -1)
+					exit(1);
+				 })
+		}
+	}
+}
+
+
+//MainProcess
+
+const args = process.argv;
+
+var wS = new webScrapper(args);
+
+if (wS.url === undefined)
+{
+	console.log("Failure : Input not good\n");
+	return (1);
+}
+
+fetch(wS.url)		//a modifier
+//	.then(response => response.text())
+	.then(data => console.log(data))
