@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fetch from "node-fetch";
 import fs from 'fs';
+import cheerio from 'cheerio';
 
 class	webScrapper{
 	flag = "";
@@ -8,6 +9,10 @@ class	webScrapper{
 	path = undefined;
 	url = undefined;
 	validFlags = "rlp";
+
+	img_urls = [];
+	explored_pages = [];
+	domain_url = undefined;
 	
 	constructor(args) {
 //		console.log(this.flag, this.lenL, this.url);
@@ -31,7 +36,7 @@ class	webScrapper{
 	checkInput(arg, nextarg) {
 		if (arg.charAt(0) === '-')
 		{
-			for (var i = 1; i < arg.length; i++)
+			for (let i = 1; i < arg.length; i++)
 			{
 				if (this.validFlags.indexOf(arg[i]) === -1) {		//check validite du flag
 					throwErr("Invalid Flag Option");
@@ -61,16 +66,54 @@ class	webScrapper{
 		else 
 			throw new Error("Execute ./spider [-rlp] URL");
 		}
+
+
+//	let	get_srcs = parse_img_url(html_data);
+//	get_img(get_srcs);
+
+	set_domain_url() {
+		let	index = this.url.indexOf("://") + 4;
+		index = this.url.indexOf("/", index);
+		if (index === -1)
+			this.domain_url = this.url + "/";
+		else
+			this.domain_url = this.url.substring(0, index + 1);
+	}
+
+	access_lower_depth(html_data) {
+		
+	let page = cheerio.load(html_data);
+	let body = page('body');
+	let	bodyElems = body.find('*');
+	let	domain_url = this.domain_url;
+	bodyElems.each(function (domain_url) {
+			let href = page(this).attr('href');
+			if (href && href.indexOf('#') !== -1) {
+				href = href.slice(0, href.indexOf('#'));
+				console.log("inside # = ", href);
+			}
+			if (href && href.startsWith(domain_url)) {
+				
+			}
+			else if (href && href.startsWith("/")) {
+				href = domain_url + href.slice(1);
+			}
+			else if (href) {
+				href = domain_url + href;
+			}
+		if (href)
+			console.log(href);
+		});
+	}
 }
 
-function	parse_html(html_data){
-	
-	var		ret = [];
-	var		nb = 0;
-	var		i;
-	var		y;
+function	parse_img_url(html_data){
 
-	html_data = html_data;
+	let		ret = [];
+	let		nb = 0;
+	let		i;
+	let		y;
+
 	console.log("i = ", i);
 	i = html_data.indexOf("<img ");
 	while (i !== -1)
@@ -89,8 +132,8 @@ function	parse_html(html_data){
 
 async function	get_img(srcs)
 {
-	var		ret = [];
-	var		i = 0;
+	let		ret = [];
+	let		i = 0;
 
 	console.log("icitte", srcs[0]);
 	await fetch(srcs[0])
@@ -113,8 +156,8 @@ async function	get_img(srcs)
 const args = process.argv;
 args.splice(0, 2);
 
-var wS;
-var	html_data;
+let wS;
+let	html_data;
 
 try {
 	wS = new webScrapper(args);
@@ -127,7 +170,10 @@ catch (error) {
 	console.log(error);
 	console.log(error.message);
 }
-
-var	get_srcs = parse_html(html_data);
-get_img(get_srcs);
+	if (wS !== undefined)
+	{
+		wS.set_domain_url();
+		wS.access_lower_depth(html_data);
+		parse_img_url(html_data);
+	}
 
