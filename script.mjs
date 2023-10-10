@@ -25,10 +25,13 @@ class	webScrapper{
 		if (this.url === undefined)
 			throw new Error("please provide an Url");
 		if (this.path == undefined)
-			this.path === "./data/";
+			this.path = "./data/";
 		if (this.lenL <= 0)
 			this.lenL = 5;
 		console.log("parsed = ", this.flag, this.lenL, this.url, this.path);
+
+		// verifier les droits du fichiers mais la nsm on trace avec fs.access()
+	//	fs.mkdir(this.path);
 	}
 
 // trouver une solution pour le double check des arguments des flags
@@ -80,31 +83,74 @@ class	webScrapper{
 			this.domain_url = this.url.substring(0, index + 1);
 	}
 
-	access_lower_depth(html_data) {
-		
-	let page = cheerio.load(html_data);
-	let body = page('body');
-	let	bodyElems = body.find('*');
-	let	domain_url = this.domain_url;
-	bodyElems.each(function (domain_url) {
-			let href = page(this).attr('href');
+	access_lower_depth(html_data, depth_lvl) {
+		if	(depth_lvl == 0)
+			return ;
+
+		console.log("depth reached = ", depth_lvl);
+		let page = cheerio.load(html_data);
+		let body = page('body');
+		let	bodyElems = body.find('*');
+		let	domain_url = this.domain_url;
+		bodyElems.each(async (index, element) => {
+			let href = page(element).attr('href');
+			if (href && (href.indexOf("mailto:") != -1	//refuser les liens personnalises
+				|| href.indexOf("tel:") != -1
+				|| href.indexOf("file:") != -1
+				|| href.indexOf("myapp:") != -1)) {
+				return ;
+			}
 			if (href && href.indexOf('#') !== -1) {
 				href = href.slice(0, href.indexOf('#'));
-				console.log("inside # = ", href);
 			}
-			if (href && href.startsWith(domain_url)) {
+			if (href && href.startsWith(this.domain_url)) {
+			//	console.log(1 + href);
 				
 			}
 			else if (href && href.startsWith("/")) {
-				href = domain_url + href.slice(1);
+				href = this.domain_url + href.slice(1);
+			//	console.log(2 + href);
 			}
-			else if (href) {
-				href = domain_url + href;
+			else if (href && href.indexOf("://") == -1) {
+				href = this.domain_url + href;
+			//	console.log(3 + href);
 			}
-		if (href)
-			console.log(href);
+			else
+				return ;
+			if (this.explored_pages.indexOf(href) != -1)
+				 return ;
+			this.explored_pages.push(href);
+
+			let img_list = parse_img_url(html_data);		//get urls and extract images
+			for (let i = 0 ; i < img_list.length; i++)
+			{
+				console.log("path = ", this.path);
+				if (this.img_urls.indexOf(img_list[i]) == -1) {
+					await get_img(this.path, img_list[i],
+						get_img_name(img_list[i]));
+					this.img_urls.push(img_list[i]);
+				}
+			}
+			let new_html_data = await get_html_data(href);
+			if (new_html_data == undefined)
+				return ;
+			this.access_lower_depth(new_html_data, depth_lvl - 1);
 		});
 	}
+}
+
+async function	get_html_data(url) {
+	let	html_data;
+
+	try {
+		await fetch(url)
+			.then(response => response.text())
+			.then(html => { html_data = html; })
+	}
+	catch (error) {
+		return ;
+	}
+	return (html_data);
 }
 
 function	parse_img_url(html_data){
@@ -114,7 +160,6 @@ function	parse_img_url(html_data){
 	let		i;
 	let		y;
 
-	console.log("i = ", i);
 	i = html_data.indexOf("<img ");
 	while (i !== -1)
 	{	
@@ -130,50 +175,53 @@ function	parse_img_url(html_data){
 
 //a faire -> modifier, chopper le nom de l image, commencer le recuersif
 
-async function	get_img(srcs)
+function	get_img_name(src)
 {
-	let		ret = [];
-	let		i = 0;
+	return (src.substring(src.lastIndexOf("/"),
+		src.lenght));
+}
 
-	console.log("icitte", srcs[0]);
-	await fetch(srcs[0])
+async function	get_img(path, src, imgName)
+{
+	await fetch(src)
 	.then(response => {
     if (response.ok) {
-		const fileOut = fs.createWriteStream("1test");
+		const fileOut = fs.createWriteStream(path + imgName);
 		response.body.pipe(fileOut);		// Pipe la réponse HTTP dans le fichier
 		fileOut.on('finish', () => {
 			console.log(`L'image a été téléchargée avec succès`);
 		});
 	}})
 	.catch(error => {
-   console.error('Downloadling problem: ', error);
+		console.error(src);
+		console.error('Downloadling problem: ', error);
   });
-	return (ret);
 }
 
 //MainProcess
+async function	main(args) {
+	args.splice(0, 2);
 
-const args = process.argv;
-args.splice(0, 2);
+	let wS;
+	let	html_data;
 
-let wS;
-let	html_data;
-
-try {
-	wS = new webScrapper(args);
-	await fetch(wS.url)
-		.then(response => response.text())
-		.then(html => { html_data = html; })
-}
-
-catch (error) {
-	console.log(error);
-	console.log(error.message);
-}
-	if (wS !== undefined)
-	{
-		wS.set_domain_url();
-		wS.access_lower_depth(html_data);
-		parse_img_url(html_data);
+	try {
+		wS = new webScrapper(args);
+		await fetch(wS.url)
+			.then(response => response.text())
+			.then(html => { html_data = html; })
 	}
 
+	catch (error) {
+		console.log(error);
+		console.log(error.message);
+	}
+	if (wS !== undefined) {
+		wS.set_domain_url();
+		await wS.access_lower_depth(html_data, wS.lenL);
+	//	parse_img_url(html_data);
+	}
+
+}
+
+main(process.argv);
