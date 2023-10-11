@@ -33,8 +33,8 @@ class	webScrapper {
 		if (this.path == undefined)
 			this.path = "./data/";
 		this.checkPath();
-		if (this.lenL <= 0 && this.flag.indexOf('r') != -1)
-			this.lenL = 1;
+		if (this.lenL <= 0 && this.flag.indexOf('r') == -1)
+			this.lenL = 0;
 		this.set_domain_url();
 	}
 
@@ -161,24 +161,25 @@ class	webScrapper {
 	}
 	
 
-	access_lower_depth(html_data, depth_lvl) {
-		if	(depth_lvl <= 0)
+	async access_lower_depth(html_data, depth_lvl) {
+		
+		let img_list = this.parse_img_url(html_data);			//handle this page's
+		for (let i = 0 ; i < img_list.length; i++)				// images
+		{
+			if (this.img_urls.indexOf(img_list[i]) == -1) {
+				this.img_urls.push(img_list[i]);
+				await get_img(this.path, img_list[i],
+					get_img_name(img_list[i]), i);
+			}
+		}
+
+		if	(depth_lvl === 0)
 			return ;
-
 		let hrefs = this.filter_domains_links(html_data, this.domain_url);
-		hrefs.forEach(async (element) => {
-
+		hrefs.forEach(async (element) => {						//dive
+																//deeper
 			this.explored_pages.push(element);
 
-			let img_list = this.parse_img_url(html_data);
-			for (let i = 0 ; i < img_list.length; i++)
-			{
-				if (this.img_urls.indexOf(img_list[i]) == -1) {
-					this.img_urls.push(img_list[i]);
-					await get_img(this.path, img_list[i],
-						get_img_name(img_list[i]), i);
-				}
-			}
 			let new_html_data = await get_html_data(element);
 			if (new_html_data == undefined)
 				return ;
@@ -276,9 +277,7 @@ async function	main(args) {
 	}
 	if (wS !== undefined && html_data != undefined) {
 		await wS.access_lower_depth(html_data, wS.lenL);
-		wS.parse_img_url(html_data);
 	}
-
 }
 
 main(process.argv);
