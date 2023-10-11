@@ -6,7 +6,7 @@ import cheerio from 'cheerio';
 
 /*****************CLASS WEBSCRAPPER*******************/
 
-class	webScrapper{
+class	webScrapper {
 	flag = "";
 	lenL = -1;
 	protocol = undefined;
@@ -17,11 +17,12 @@ class	webScrapper{
 	img_urls = [];
 	explored_pages = [];
 	domain_url = undefined;
-	
+
+
 	/*****************CONSTRUCTOR*******************/
 	constructor(args) {
-//		console.log(this.flag, this.lenL, this.url);
-		args.forEach((arg, index) => this.checkInput(arg, args[index + 1]));
+		for (let i = 0; i < args.length; i += this.checkInput(args[i], args[i + 1], i))
+			{ }
 		if (this.flag.indexOf('l') !== -1 && (this.flag.indexOf('r') === -1
 			|| this.lenL === 0))
 			throw new Error("please use -l with -r and specify a size");
@@ -31,18 +32,31 @@ class	webScrapper{
 			throw new Error("please provide an Url");
 		if (this.path == undefined)
 			this.path = "./data/";
-		if (this.lenL <= 0)
-			this.lenL = 5;
-		console.log("parsed = ", this.flag, this.lenL, this.url, this.path);
-
-		// verifier les droits du fichiers mais la nsm on trace avec fs.access()
-	//	fs.mkdir(this.path);
+		this.checkPath();
+		if (this.lenL <= 0 && this.flag.indexOf('r') != -1)
+			this.lenL = 1;
+		this.set_domain_url();
 	}
 
-// trouver une solution pour le double check des arguments des flags
 
-	/*****************PARSER*******************/
-	checkInput(arg, nextarg) {
+	/*****************CHECKER/PARSER*******************/
+	
+	async checkPath() {
+		try {
+			await fs.access(this.path, fs.constants.W_OK, (err) => {
+				if (err) {
+					console.error("Please ensure you have proper right for your path");
+					throw (err);
+				}
+			});												//verifier les droits
+			fs.statSync(this.path).isDirectory();			//verifier le path est un dossier
+		} catch (error) {
+			console.error("Please check your file path");
+			throw (error);
+		}
+	}
+
+	checkInput(arg, nextarg, index) {
 		if (arg.charAt(0) === '-')
 		{
 			for (let i = 1; i < arg.length; i++)
@@ -54,19 +68,19 @@ class	webScrapper{
 					this.flag += arg[i];
 				if (arg[i] === 'l' && nextarg != undefined
 					&& !isNaN(Number(nextarg))) {						//verifier que -l est join a une taille
-					if (this.lenL !== 0)
+					if (this.lenL !== -1)
 						throw new Error("Please use a single l flag");
 					this.lenL = Number(nextarg);
 					if (this.lenL <= 0)
 						throw new Error("-l size must be over 0");
+					return (2);
 				}
 				else if (arg[i] === 'p' && nextarg != undefined)	//verifier que -p est join a un path
 				{
 					if (this.path !== undefined)
 						throw new Error("Please use a single p flag");
-					if (!(fs.statSync(nextarg).isDirectory()) )			//verifier le path est un dossier
-						throw new Error("Please enter a valid path");
 					this.path = nextarg;
+					return (2);
 				}
 			}
 		}
@@ -74,11 +88,8 @@ class	webScrapper{
 			this.url = arg;
 		else 
 			throw new Error("Execute ./spider [-rlp] URL");
-		}
-
-
-//	let	get_srcs = parse_img_url(html_data);
-//	get_img(get_srcs);
+		return (1);
+	}
 
 	/*****************SETTER*******************/
 	set_domain_url() {
@@ -93,19 +104,15 @@ class	webScrapper{
 
 
 	/*****************METHODS*******************/
-	filter_domains_links(html_data) {					//c'est vraiment pas bo
+	filter_domains_links(html_data) {
 		let $ = cheerio.load(html_data);
 		let $body = $('body [href]');
 		let hrefs = [];
 		let	i = 0;
 		$body.each((index, element) => {
 			let		current = $(element).attr('href');
-			if (!current || current.indexOf("mailto:") != -1	//refuser les liens personnalises
-				|| current.indexOf("tel:") != -1
-				|| current.indexOf("file:") != -1
-				|| current.indexOf("myapp:") != -1) {
+			if (is_personals_url(current))						//refuser les liens personnalises
 				return ;
-			}
 			switch (current.indexOf('#')) {						//trimer les references a des 
 				case -1:										//sections
 					break ;
@@ -132,45 +139,44 @@ class	webScrapper{
 
 	parse_img_url(html_data){
 
-	let		ret = [];
-	let		nb = 0;
-	let		i;
-	let		y;
-	let		current;
+		let		ret = [];
+		let		nb = 0;
+		let		i;
+		let		y;
+		let		current;
 
-	i = html_data.indexOf("<img ");
-	while (i !== -1)
-	{	
-		i = html_data.indexOf("src", i);
-		i = html_data.indexOf("\"", i);
-		y = html_data.indexOf("\"", i + 1);
-		current = html_data.substring(i + 1, y);
-		if (this.img_urls.indexOf(current) == -1
-			&& ret.indexOf(current) == -1)
-			ret[nb++] = format_img_url(current, this.domain_url, this.protocol);
-		i = html_data.indexOf("<img ", y);
+		i = html_data.indexOf("<img ");
+		while (i !== -1)
+		{	
+			i = html_data.indexOf("src", i);
+			i = html_data.indexOf("\"", i);
+			y = html_data.indexOf("\"", i + 1);
+			current = html_data.substring(i + 1, y);
+			if (this.img_urls.indexOf(current) == -1
+				&& ret.indexOf(current) == -1)
+				ret[nb++] = format_img_url(current, this.domain_url, this.protocol);
+			i = html_data.indexOf("<img ", y);
+		}
+		return ret;	
 	}
-	return ret;	
-}
+	
 
 	access_lower_depth(html_data, depth_lvl) {
-		if	(depth_lvl == 0)
+		if	(depth_lvl <= 0)
 			return ;
 
-	//	console.log("depth reached = ", depth_lvl);
 		let hrefs = this.filter_domains_links(html_data, this.domain_url);
 		hrefs.forEach(async (element) => {
 
 			this.explored_pages.push(element);
 
 			let img_list = this.parse_img_url(html_data);
-	//		console.log(img_list);//get urls and extract images
 			for (let i = 0 ; i < img_list.length; i++)
 			{
 				if (this.img_urls.indexOf(img_list[i]) == -1) {
+					this.img_urls.push(img_list[i]);
 					await get_img(this.path, img_list[i],
 						get_img_name(img_list[i]), i);
-					this.img_urls.push(img_list[i]);
 				}
 			}
 			let new_html_data = await get_html_data(element);
@@ -181,8 +187,17 @@ class	webScrapper{
 	}
 }
 
+
 /*****************EXTERNS FUNCTIONS*******************/
 
+function	is_personals_url(current) {
+	if (!current || current.indexOf("mailto:") != -1	
+		|| current.indexOf("tel:") != -1
+		|| current.indexOf("file:") != -1
+		|| current.indexOf("myapp:") != -1)
+		return (true);
+	return (false);
+}
 
 async function	get_html_data(url) {
 	let	html_data;
@@ -193,7 +208,7 @@ async function	get_html_data(url) {
 			.then(html => { html_data = html; })
 	}
 	catch (error) {
-		console.log(error);
+		console.error(error);
 		return (undefined);
 	}
 	return (html_data);
@@ -201,7 +216,7 @@ async function	get_html_data(url) {
 
 function	get_img_name(src)
 {
-	let name = src.substring(src.lastIndexOf("/"), src.lenght);
+	let name = src.substring(src.lastIndexOf("/") + 1, src.lenght);
 	if (name.length > 200) {
 		name = name.slice(0, 200);
 	}
@@ -226,10 +241,11 @@ async function	get_img(path, src, imgName, index)
 	await fetch(src)
 		.then(response => {
 			if (response.ok) {
-				const fileOut = fs.createWriteStream(path + imgName + index);
+				console.log(path, index, imgName);
+				const fileOut = fs.createWriteStream(path + index + imgName);
 				response.body.pipe(fileOut);		// Pipe la réponse HTTP dans le fichier
 			/*	fileOut.on('finish', () => {
-					console.log(`L'image a été téléchargée avec succès`);
+					console.log(imgName + index);
 				});
 		*/	}})
 		.catch(error => {
@@ -239,6 +255,8 @@ async function	get_img(path, src, imgName, index)
 }
 
 /*****************MAIN*******************/
+
+
 async function	main(args) {
 	args.splice(0, 2);
 
@@ -253,14 +271,12 @@ async function	main(args) {
 	}
 
 	catch (error) {
-		console.log(error);
-		console.log(error.message);
+		console.error(error);
+		return ;
 	}
-	console.log(html_data);
 	if (wS !== undefined && html_data != undefined) {
-		wS.set_domain_url();
 		await wS.access_lower_depth(html_data, wS.lenL);
-		//	parse_img_url(html_data);
+		wS.parse_img_url(html_data);
 	}
 
 }
