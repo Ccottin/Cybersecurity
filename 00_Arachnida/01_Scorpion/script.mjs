@@ -3,6 +3,16 @@
 import fs from 'fs';
 import sharp from 'sharp';
 import ExifParser from 'exif-parser';
+import exifr from 'exifr';
+
+
+function access_icc_data(input) {
+	exifr.parse(input, {tiff: false, icc: true})
+		.then(output => {
+		console.log('----ICC');
+		console.log(output);
+	})
+}
 
 function	access_exif_data(file) {
 	fs.readFile(file, (err, data) => {
@@ -11,49 +21,56 @@ function	access_exif_data(file) {
 		else {
 			const parser = ExifParser.create(data);
 			const exifData = parser.parse();
+			console.log( "----EXIF informations : ");
 			console.log(exifData);
-			console.log("==================");
-			console.log( "EXIF informations :"
-				,"\nExif exifData starts at", exifData.app1Offset, "bytes"
-				,"\nResolution Unit: ", exifData.tags.ResolutionUnit
-				,"\nXResolution(Dot per Unit): ", exifData.tags.XResolution
-				,"\nYResolution(Dot per Unit): ", exifData.tags.YResolution
-				,"\nArtist: ", exifData.tags.Artist
-				,"\nCopyright: ", exifData.tags.Copyright);
-
-			}
+		}
 	});
 }
 
 async function access_metadatas(file) {
-	const data = await sharp(file).metadata();
-	console.log(file.substring(file.lastIndexOf("/") + 1) + "'s metadatas : ");
+	let data;
+	try {
+		data = await sharp(file).metadata();
+	} catch (err) {
+		console.log("unvalid image file");
+		return ;
+	}
 	console.log("==================");
+	console.log(file.substring(file.lastIndexOf("/") + 1) + "'s metadatas : ");
 	console.log(data);
-	,"\nFormat: ", data.format
-	,"\nWidth: ", data.width + "px"
-	,"\nHeight: ", data.height + "px"
-	,"\nColors display: ", data.space
-	,"\nColors channels: ", data.channels
-	,"   (3 channels with sRGB usually stands for Red Green and Blue)"
-	,"\ntype per channels: ", data.depth
-	,"\nResolution Unit: ", data.resolutionUnit
-	,"\nDots Per Inch (DPI): ", data.density
-	,"\nChroma Subsampling: ", data.chromaSubsampling);
-	data.isProgressive ? console.log("The image will appear progressively") :
-		console.log("The image will be loaded lines per lines");
-	data.hasProfile ? console.log("The image has a color profile") :
-		console.log("The image has no color profile");
-	data.hasAlpha ? console.log("The image got a transparent channel") :
-		console.log("The image got no transparent channel");
+
+	if (data.isProgressive != undefined) {
+		data.isProgressive ? console.log("The image will appear progressively") :
+			console.log("The image will be loaded lines per lines");
+	}
+	if (data.hasProfile != undefined) {
+		data.hasProfile ? console.log("The image has a color profile") :
+			console.log("The image has no color profile");
+	}
+	if (data.hasAlpha != undefined) {
+		data.hasAlpha ? console.log("The image got a transparent channel") :
+			console.log("The image got no transparent channel");
+	}
 
 	if (data.format == 'jpeg')
 		access_exif_data(file);
+//	if (data.icc)
+//		access_icc_data(data.icc);
+	
+
+	console.log("==================");
 }
 
-function	main(args) {
+async function	main(args) {
 	args.splice(0,2);
 	for (let i = 0; i < args.length; i++) {
+		let extension = args[i].substring(args[i].lastIndexOf('.'));
+		if (extension !== ".jpg" && extension !== ".jpeg"
+			&& extension !== ".png" && extension !== ".gif" 
+			&& extension !== ".jpg")
+			continue ;
+		exifr.parse(args[i])
+			.then(output => console.log(output));
 		access_metadatas(args[i]);
 	}
 }
