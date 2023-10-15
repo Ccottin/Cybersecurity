@@ -43,6 +43,19 @@ async function	access_icc_data(input) {
 	console.log(output);
 }
 
+async function	access_exif_data(input) {
+	let output; 
+	try {
+		output = await exifr.parse(input, {tiff: false,
+			icc: false, ifd0: false, exif: true, gps: false })
+	} catch (err) {
+		console.error(err.name, "Cannot access EXIF datas");
+		return ;
+	}
+	console.log('----EXIF');
+	console.log(output);
+}
+/* another library, less detailled
 async function	access_exif_data(file) {
 	fs.readFile(file, (err, data) => {
 		if (err)
@@ -54,7 +67,7 @@ async function	access_exif_data(file) {
 			console.log(exifData);
 		}
 	});
-}
+} */
 
 async function access_metadatas(file) {
 	let data;
@@ -110,7 +123,7 @@ async function	main(args) {
 			&& extension !== ".jpg")
 			continue ;
 		await access_metadatas(args[i]);
-		await new Promise(r => setTimeout(r, 50));
+//		await new Promise(r => setTimeout(r, 50));
 	}
 }
 
