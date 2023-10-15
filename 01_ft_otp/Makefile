@@ -6,13 +6,13 @@
 #    By: ccottin <marvin@42.fr>                     +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2023/10/13 19:38:32 by ccottin           #+#    #+#              #
-#    Updated: 2023/10/13 20:58:59 by ccottin          ###   ########.fr        #
+#    Updated: 2023/10/15 18:55:57 by ccottin          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 NAME	= ft_otp
 
-SRCS	= main.cpp otop.cpp
+SRCS	= main.cpp 
 
 CC	= c++
 
@@ -20,7 +20,7 @@ OBJS	= $(SRCS:.cpp=.o)
 
 DEPS	= $(OBJS:.o=.d)
 
-OPSSLFLAGS = $(pkg-config --cflags --libs openssl)
+OPSSLFLAGS = $$(pkg-config --cflags --libs openssl)
 
 CFLAGS	= -Wall -Wextra -Werror -MMD -g3
 
