@@ -149,7 +149,7 @@ class	webScrapper {
 		$('img').each((index, element) => {
 			const src = $(element).attr('src');
 			if (src) {
-				ret.push(src);
+				ret.push(format_img_url(src, this.domain_url, this.protocol));
 			}
 		})
 		return ret;	
