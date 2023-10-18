@@ -145,18 +145,13 @@ class	webScrapper {
 		let		y;
 		let		current;
 
-		i = html_data.indexOf("<img ");
-		while (i !== -1)
-		{	
-			i = html_data.indexOf("src", i);
-			i = html_data.indexOf("\"", i);
-			y = html_data.indexOf("\"", i + 1);
-			current = html_data.substring(i + 1, y);
-			if (this.img_urls.indexOf(current) == -1
-				&& ret.indexOf(current) == -1)
-				ret[nb++] = format_img_url(current, this.domain_url, this.protocol);
-			i = html_data.indexOf("<img ", y);
-		}
+		const $ = cheerio.load(html_data);
+		$('img').each((index, element) => {
+			const src = $(element).attr('src');
+			if (src) {
+				ret.push(src);
+			}
+		})
 		return ret;	
 	}
 	
@@ -218,8 +213,8 @@ async function	get_html_data(url) {
 function	get_img_name(src)
 {
 	let name = src.substring(src.lastIndexOf("/") + 1, src.lenght);
-	if (name.length > 200) {
-		name = name.slice(0, 200);
+	if (name.length > 50) {
+		name = name.slice(0, 50);
 	}
 	return (name);
 }
@@ -236,22 +231,28 @@ function	format_img_url(src, domain_url, protocol)
 		return (domain_url + src);
 }
 
+/*function	isGoodExt(current) {
+	let extension = current.substring(current.lastIndexOf('.'));
+	if (extension !== ".jpeg" && extension !== ".jpg"
+		&& extension !== ".gif" && extension !== ".bmp"
+		&& extension !== ".png")
+			return (false);
+	return (true);
+}*/
 
 async function	get_img(path, src, imgName, index)
 {
 	await fetch(src)
 		.then(response => {
 			if (response.ok) {
-				console.log(path, index, imgName);
 				const fileOut = fs.createWriteStream(path + index + imgName);
 				response.body.pipe(fileOut);		// Pipe la réponse HTTP dans le fichier
-			/*	fileOut.on('finish', () => {
-					console.log(imgName + index);
+				fileOut.on('finish', () => {
+					console.log(imgName, 'is downloaded.');
 				});
-		*/	}})
+			}})
 		.catch(error => {
-			console.error(src);
-			console.error('Downloadling problem: ', error);
+			console.error('Downloadling problem: ', error.name, " on file ", imgName);
 		});
 }
 
