@@ -6,7 +6,7 @@
 /*   By: ccottin <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/13 19:43:44 by ccottin           #+#    #+#             */
-/*   Updated: 2023/10/19 17:44:27 by ccottin          ###   ########.fr       */
+/*   Updated: 2023/10/19 18:06:01 by ccottin          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -139,8 +139,6 @@ void		hotp_calculator(std::string key, int time_ref)
 
 	memset(hmac_string, 0, SHA_DIGEST_LENGTH + 1);
 	hmac_calculator(key, time_ref, hmac_string);
-	for (unsigned int i = 0 ; i < strlen((char *)hmac_calculator); i++)
-		printf("%x", hmac_string[i]);
 	//get the lower 4 bits and convert them to int, that shloud contain result 
 	//between 0 & 15
 	offset = hmac_string[19] & 0xf;
@@ -152,7 +150,7 @@ void		hotp_calculator(std::string key, int time_ref)
            | (hmac_string[offset+3] & 0xff) ;
 	
 	bin_code %= 1000000;
-	std::cout << std::endl << bin_code;
+	std::cout << bin_code;
 }
 
 
