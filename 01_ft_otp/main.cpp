@@ -6,22 +6,16 @@
 /*   By: ccottin <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/13 19:43:44 by ccottin           #+#    #+#             */
-/*   Updated: 2023/10/18 21:13:23 by ccottin          ###   ########.fr       */
+/*   Updated: 2023/10/19 17:44:27 by ccottin          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "header.hpp"
 
-//preciser les modes directements dans l invocation de ta fonction comme ca 
-//si tu passes un to_write, t as juste a ajouter ta cle izi
-//modes neededs = trunc for discarding all previous contents
-//in for input
-//out for output
-
 std::string	file_error(void)
 {
 	std::cerr << "Problem with key file.\n";
-	exit(1);	//faire mieux maybe
+	exit(1);
 }
 
 std::string	file_manager(const char *filename, std::ios_base::openmode mode,
@@ -50,7 +44,7 @@ void		ft_error(int err)
 	switch (err) 
 	{
 		case 1:
-			std::cerr << "Usage : ./ft_otp [-g key] or [-k password file]";
+			std::cerr << "Usage : ./ft_otp [-g key file] or [-k password file]";
 			break ;
 		case 2:
 			std::cerr << "error: key must be 64 hexadecimal characters.";
@@ -73,14 +67,13 @@ int				time_steps_calculator(void)
 {
 	time_t	current_time;
 	int		time_ref;
-	int		x;
 
 	if (TIME_STEPS == 0)
 		ft_error(5);
 	if (time(&current_time) == -1)
 		ft_error(4);						//we get time since t0, the begening of
-	x = 60 / TIME_STEPS;					//Unix time, then we divide it by time
-	time_ref = current_time / x;			//steps per seconds and truncate the result to get
+											//Unix time, then we divide it by time
+	time_ref = current_time / TIME_STEPS;	//steps per seconds and truncate the result to get
 	return (time_ref);						//the moving factor 'C' (or 'T')
 
 }
@@ -88,10 +81,9 @@ int				time_steps_calculator(void)
 void		num_to_string(int number, unsigned char *ret)
 {
 	//recheck this in order to make the string fits perfectly w/ this one and the concat
-	for (unsigned int i = sizeof(int); i > 0; --i)
+	for (unsigned int i = sizeof(int); i > 0;)
 	{
-		ret[i] = number;
-		printf("%d, %d\n", ret[i], i);
+		ret[--i] = number;
 		number >>= 8;
 	}
 	ret[sizeof(int)] = 0;
@@ -104,73 +96,89 @@ unsigned char	*call_SHA_1(const unsigned char *to_hash, unsigned char *hashed)
 	return (hashed);
 }
 
-void		hmac_calculator(std::string key, int time_ref)
+void		hmac_calculator(std::string key, int time_ref, unsigned char *ret)
 {
 	unsigned char	ipad[65 + sizeof(int)];				//create 2 string with fixed values to
-	unsigned char	opad[65];							//apply a XOR operation on the hashed output
+	unsigned char	opad[65 * 2 + sizeof(int)];			//apply a XOR operation on the hashed output
 	unsigned char	key_c[65];							//later on.
 	unsigned char	time_str[sizeof(int) + 1];			//ipad = inner padding opad = outer
 	unsigned char	hashed[SHA_DIGEST_LENGTH + 1];		//this algo helps with eccficiency issues
 													//by precomputing hashed keys, making the auth
 	memset(key_c, 0, 65);							//check faster for tres demandes servers
-	memset(key_c, 0, 65);							//check faster for tres demandes servers
 	memset(ipad, 0, 65 + sizeof(int));	
+	memset(opad, 0, 65 * 2 + sizeof(int));	
 	
-	std::cout << key << "=========" << time_ref << "=======" << std::endl;	
 	//first we need the key to be no longer than the block of data B for SHA = 64
 	if (key.length() > 64)
 		memcpy(key_c, call_SHA_1((const unsigned char*)key.c_str(), hashed), 20);
-	//we should print the key in a bloc of memory B-sized to XOR it
 	else
-		memcpy(key_c, key.c_str(), key.length());	
+		memcpy(key_c, key.c_str(), key.length());
+
 	//then we'll do SHA(Key XOR opad, (SHA(key XOR ipad, time))) step by step
-
-	//	std::cout << key_c << "=========" << time_ref << "=======" << std::endl;
-
-	memcpy(ipad, key_c, 65);	
-	memcpy(opad, key_c, 65);	
-	for (int i = 0; i < 64; i++) {
-                ipad[i] ^= 0x36;
-                opad[i] ^= 0x5c;
-        }
-	for (unsigned int i = 0; i < strlen((char*)ipad); i++)
-		printf("%d = %d\n", i, ipad[i]);
-
+	//we copy the key in strings we'll be padding with fixed values
+	memcpy(ipad, key_c, 65);
+	memcpy(opad, key_c, 65);
+	//transfert the value of time to string to patch it at the end
 	num_to_string(time_ref, time_str);
-	for (unsigned int i = 0; i < strlen((char*)ipad); i++)
-		printf("%d = %d\n", i, time_str[i]);
-
-	//im tired and i cannot make this works
 	memcpy(&ipad[strlen((char*)ipad)], time_str, strlen((char*)time_str));
-
-	for (unsigned int i = 0; i < strlen((char*)ipad); i++)
-		printf("%d = %d\n", i, ipad[i]);
+	//hash this first value 
 	call_SHA_1((unsigned char*)ipad, hashed);
-
-	for (unsigned int i = 0; i < strlen((char*)hashed); i++)
-		printf("%d = %d\n", i, hashed[i]);
-
-	
+	//happend hashed to the end of opad and hash this again
+	memcpy(&opad[strlen((char*)opad)], hashed, strlen((char*)hashed));
+	call_SHA_1((unsigned char*)opad, hashed);
+	//transfer the value to the return string
+	memcpy(ret, hashed, strlen((char*)hashed));
 }
 
-void		hotp_calculator(std::string key, long int time_ref)
+
+void		hotp_calculator(std::string key, int time_ref)
 {
-	hmac_calculator(key, time_ref);
+	unsigned char	hmac_string[SHA_DIGEST_LENGTH + 1];
+	int				offset;
+	int				bin_code;
 
+	memset(hmac_string, 0, SHA_DIGEST_LENGTH + 1);
+	hmac_calculator(key, time_ref, hmac_string);
+	for (unsigned int i = 0 ; i < strlen((char *)hmac_calculator); i++)
+		printf("%x", hmac_string[i]);
+	//get the lower 4 bits and convert them to int, that shloud contain result 
+	//between 0 & 15
+	offset = hmac_string[19] & 0xf;
+	//then we get bytes starting at offset, but we mask the first one to avoid
+	//signed-unsigned convertion problem
+	bin_code = (hmac_string[offset]  & 0x7f) << 24
+           | (hmac_string[offset+1] & 0xff) << 16
+           | (hmac_string[offset+2] & 0xff) <<  8
+           | (hmac_string[offset+3] & 0xff) ;
+	
+	bin_code %= 1000000;
+	std::cout << std::endl << bin_code;
 }
+
 
 void		generate_password(void)
 {
+	unsigned int		i;
+	
 	std::string	key = file_manager("ft_otp.key", std::ios_base::in, NULL);
 	if (key.empty())
 		ft_error(3);
+	i = 0;
+	while (std::isxdigit(key[i]))
+		++i;
+	if (i != key.length() || i < 64)
+		ft_error(2);
+
+	
 	hotp_calculator(key, time_steps_calculator());
 }
 
-void		stock_new_key(std::string key)
+void		stock_new_key(char  *in_file)
 {
+	std::string			key;
 	unsigned int		i;
-
+	
+	key = file_manager(in_file, std::ios_base::in, NULL);
 	i = 0;
 	while (std::isxdigit(key[i]))
 		++i;
