@@ -1,0 +1,1 @@
+docker run --rm gzm55/oathtool --totp -v 8d47d01d67e02fe4869409a91da86b8ff391bfedc24a69fd657dd82efb435c59
