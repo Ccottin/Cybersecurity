@@ -6,7 +6,7 @@
 /*   By: ccottin <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/13 19:45:03 by ccottin           #+#    #+#             */
-/*   Updated: 2023/10/19 16:04:27 by ccottin          ###   ########.fr       */
+/*   Updated: 2023/10/20 14:53:39 by ccottin          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,5 +25,7 @@
 # include <cctype>
 # include <ctime>
 # include <openssl/sha.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
 
 #endif

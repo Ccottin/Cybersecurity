@@ -6,7 +6,7 @@
 /*   By: ccottin <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/13 19:43:44 by ccottin           #+#    #+#             */
-/*   Updated: 2023/10/20 15:03:18 by ccottin          ###   ########.fr       */
+/*   Updated: 2023/10/20 20:10:54 by ccottin          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -63,10 +63,10 @@ void		ft_error(int err)
 	exit(1);
 }
 
-int				time_steps_calculator(void)
+uint64_t		time_steps_calculator(void)
 {
 	time_t	current_time;
-	int		time_ref;
+	uint64_t	time_ref;
 
 	if (TIME_STEPS == 0)
 		ft_error(5);
@@ -77,14 +77,14 @@ int				time_steps_calculator(void)
 	return (time_ref);						//the moving factor 'C' (or 'T')
 
 }
-
+//42 system is little endian so we reverse 
 void		num_to_string(int number, unsigned char *ret)
 {
-//	for (unsigned int i = sizeof(int); i > 0;)
-	for (unsigned int i = 0; i < sizeof(int); i++)
+	for (unsigned int i = sizeof(int); i > 0;)
+//	for (unsigned int i = 0; i < sizeof(int); i++)
 	{
-		ret[i] = number;
-//		ret[--i] = number;
+//		ret[i] = number;
+		ret[--i] = number;
 		number >>= 8;
 	}
 	ret[sizeof(int)] = 0;
@@ -124,6 +124,7 @@ void		hmac_calculator(std::string key, int time_ref, unsigned char *ret)
                 ipad[i] ^= 0x36;
                 opad[i] ^= 0x5c;
         }
+
 	//transfert the value of time to string to patch it at the end
 	num_to_string(time_ref, time_str);
 	std::cout << "time = ";
@@ -145,44 +146,67 @@ void		hmac_calculator(std::string key, int time_ref, unsigned char *ret)
 }
 
 
-void		hotp_calculator(std::string key,long int time_ref)
+void		hotp_calculator(std::string key,uint64_t time_ref)
 {
+	uint8_t			* hmac_result;
 	unsigned char	hmac_string[SHA_DIGEST_LENGTH + 1];
 	unsigned char	hmac1_string[SHA_DIGEST_LENGTH + 1];
 	int				offset;
 	int				bin_code;
 
-	char	number[5];
-	number[4] = 0;
-	num_to_string(time_ref,(unsigned char *)number);
-
 	memset(hmac_string, 0, SHA_DIGEST_LENGTH + 1);
 	memset(hmac1_string, 0, SHA_DIGEST_LENGTH + 1);
-
 	hmac_calculator(key, time_ref, hmac1_string);
-	std::cout << "time = " << time_ref << std::endl;
+	time_ref = 0;
+	time_ref = (time(NULL)) / TIME_STEPS;
 
-	HMAC(EVP_sha1(), key.c_str(), key.length(), (unsigned char*)&time_ref,
-		8, (unsigned char*)hmac_string, NULL);
+	uint32_t	endianness = 0xdeadbeef;
+	if ((*(const uint8_t *)&endianness) == 0xef)
+	{
+		time_ref = ((time_ref & 0x00000000ffffffff) << 32) | ((time_ref & 0xffffffff00000000) >> 32);
+		time_ref = ((time_ref & 0x0000ffff0000ffff) << 16) | ((time_ref & 0xffff0000ffff0000) >> 16);
+		time_ref = ((time_ref & 0x00ff00ff00ff00ff) <<  8) | ((time_ref & 0xff00ff00ff00ff00) >>  8);
+	};
+
+	std::cout << "========================" << std::endl;
+	std::cout << key.c_str() <<std::endl;
+	std::cout << "========================" << std::endl;
+	for (int y = 0; y < strlen((char*)key.c_str()); y++)
+		printf("%x ", (key.c_str())[y]);
+	
+	char test[3];
+	test[0] = key.c_str()[0];
+	test[1] = key.c_str()[1];
+	test[2] = 0;
+	char res;
+	//convertir la chaine key en hexa, puis la nourrir au hmac ! :)	
+	res = 0;
+	res = (unsigned char)strtol(test, NULL, 16);
+	printf("\ntest = %x\n", (unsigned char)res);
+	std::cout <<std::endl << "key len = " << key.length() << std::endl;
+	std::cout << std::endl;
+	printf("time\n%lu\n", time_ref);
+
+	hmac_result = (uint8_t*)HMAC(EVP_sha1(), (unsigned char*)key.c_str(), key.length()/2, (unsigned char*)&time_ref,
+		sizeof(time_ref), NULL, NULL);
 	
 	std::cout << "hmac = ";
-	for (unsigned int i = 0; i < std::strlen((char*)hmac_string); i++)
-		printf("%x", hmac_string[i]);
-	std::cout << std::endl;
-
+	for (unsigned int i = 0; i < 20; i++)
+		printf("%x", hmac_result[i]);
+	
 
 	//get the lower 4 bits and convert them to int, that shloud contain result 
 	//between 0 & 15
-	offset = hmac_string[19] & 0xf;
+	offset = hmac_result[19] & 0xf;
 	//then we get bytes starting at offset, but we mask the first one to avoid
 	//signed-unsigned convertion problem
-	bin_code = (hmac_string[offset]  & 0x7f) << 24
-           | (hmac_string[offset+1] & 0xff) << 16
-           | (hmac_string[offset+2] & 0xff) <<  8
-           | (hmac_string[offset+3] & 0xff) ;
+	bin_code = (hmac_result[offset]  & 0x7f) << 24
+           | (hmac_result[offset+1] & 0xff) << 16
+           | (hmac_result[offset+2] & 0xff) <<  8
+           | (hmac_result[offset+3] & 0xff) ;
 	
 	bin_code %= 1000000;
-	std::cout << bin_code << std::endl;
+	std::cout << std::endl<< bin_code << std::endl;
 	offset = hmac1_string[19] & 0xf;
 	//then we get bytes starting at offset, but we mask the first one to avoid
 	//signed-unsigned convertion problem
@@ -192,7 +216,7 @@ void		hotp_calculator(std::string key,long int time_ref)
            | (hmac1_string[offset+3] & 0xff) ;
 	
 	bin_code %= 1000000;
-	std::cout << "deux" << bin_code << std::endl;
+	std::cout << "deux " << bin_code << std::endl;
 
 }
 
@@ -210,20 +234,8 @@ void		generate_password(void)
 	if (i != key.length() || i < 64)
 		ft_error(2);
 */
-	unsigned char binaryKey[1024];
-	int binaryKeyLength = EVP_DecodeBlock(binaryKey, (const unsigned char*)key.c_str(), key.length());
 
-    // Encode the binary key to base32
-    char base32Key[1024];
-    int base32KeyLength = EVP_EncodeBlock((unsigned char*)base32Key, binaryKey, binaryKeyLength);
-
-    // Null-terminate the base32Key
-    base32Key[base32KeyLength] = '\0';
-
-	std::cout << base32Key << std::endl;
 	hotp_calculator(key, time_steps_calculator());
-	std::cout << "base32" << std::endl;
-	hotp_calculator(base32Key, time_steps_calculator());
 }
 
 void		stock_new_key(char  *in_file)
@@ -242,7 +254,7 @@ void		stock_new_key(char  *in_file)
 
 int			main(int ac, char **av)
 {
-	if (ac != 3 || (strncmp(av[1], "-g", 3) && strncmp(av[1], "-k", 3))
+  if (ac != 3 || (strncmp(av[1], "-g", 3) && strncmp(av[1], "-k", 3))
 				|| (!strncmp(av[1], "-k", 3) && strncmp(av[2], "ft_otp.key", 11)))
 		ft_error(1);
 	
