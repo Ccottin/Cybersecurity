@@ -6,7 +6,7 @@
 /*   By: ccottin <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/13 19:43:44 by ccottin           #+#    #+#             */
-/*   Updated: 2023/10/20 20:10:54 by ccottin          ###   ########.fr       */
+/*   Updated: 2023/10/24 15:33:00 by ccottin          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -77,89 +77,36 @@ uint64_t		time_steps_calculator(void)
 	return (time_ref);						//the moving factor 'C' (or 'T')
 
 }
-//42 system is little endian so we reverse 
-void		num_to_string(int number, unsigned char *ret)
+
+unsigned char		*to_hexa(const char *string, unsigned int len, unsigned char *ret)
 {
-	for (unsigned int i = sizeof(int); i > 0;)
-//	for (unsigned int i = 0; i < sizeof(int); i++)
+	char res;
+	char test[3];
+	
+	test[2] = 0;
+	
+	for (unsigned int i = 0 ; i < len ; i +=2)
 	{
-//		ret[i] = number;
-		ret[--i] = number;
-		number >>= 8;
+		test[0] = string[i];
+		test[1] = string[i + 1];
+		res = 0;
+		res = (unsigned char)strtol(test, NULL, 16);
+		ret[i / 2] = res;
 	}
-	ret[sizeof(int)] = 0;
+	return (ret);
 }
 
-unsigned char	*call_SHA_1(const unsigned char *to_hash, unsigned char *hashed)
-{
-    SHA1(to_hash, strlen((const char *)to_hash), hashed);
-	hashed[SHA_DIGEST_LENGTH] = 0;
-	return (hashed);
-}
-
-void		hmac_calculator(std::string key, int time_ref, unsigned char *ret)
-{
-	unsigned char	ipad[65 + sizeof(int)];				//create 2 string with fixed values to
-	unsigned char	opad[65 * 2 + sizeof(int)];			//apply a XOR operation on the hashed output
-	unsigned char	key_c[65];							//later on.
-	unsigned char	time_str[sizeof(int) + 1];			//ipad = inner padding opad = outer
-	unsigned char	hashed[SHA_DIGEST_LENGTH + 1];		//this algo helps with eccficiency issues
-													//by precomputing hashed keys, making the auth
-	memset(key_c, 0, 65);							//check faster for tres demandes servers
-	memset(ipad, 0, 65 + sizeof(int));	
-	memset(opad, 0, 65 * 2 + sizeof(int));	
-
-	std::cout << "time = " << time_ref << std::endl;
-	//first we need the key to be no longer than the block of data B for SHA = 64
-	if (key.length() > 64)
-		memcpy(key_c, call_SHA_1((const unsigned char*)key.c_str(), hashed), 20);
-	else
-		memcpy(key_c, key.c_str(), key.length());
-
-	//then we'll do SHA(Key XOR opad, (SHA(key XOR ipad, time))) step by step
-	//we copy the key in strings we'll be padding with fixed values
-	memcpy(ipad, key_c, 65);
-	memcpy(opad, key_c, 65);
-	for (int i = 0; i < 64; i++) {
-                ipad[i] ^= 0x36;
-                opad[i] ^= 0x5c;
-        }
-
-	//transfert the value of time to string to patch it at the end
-	num_to_string(time_ref, time_str);
-	std::cout << "time = ";
-	for (unsigned int i = 0; i < 4; i++)
-		printf("%d", time_str[i]);
-	std::cout << "\n";
-	memcpy(&ipad[strlen((char*)ipad)], time_str, strlen((char*)time_str));
-	//hash this first value 
-	call_SHA_1((unsigned char*)ipad, hashed);
-	//happend hashed to the end of opad and hash this again
-	memcpy(&opad[strlen((char*)opad)], hashed, strlen((char*)hashed));
-	call_SHA_1((unsigned char*)opad, hashed);
-	//transfer the value to the return string
-	memcpy(ret, hashed, strlen((char*)hashed));
-	std::cout << "1hmac = ";
-	for (unsigned int i = 0; i < std::strlen((char*)ret); i++)
-		printf("%x", ret[i]);
-	std::cout << std::endl;
-}
-
-
-void		hotp_calculator(std::string key,uint64_t time_ref)
+void		hotp_calculator(std::string key, uint64_t time_ref)
 {
 	uint8_t			* hmac_result;
-	unsigned char	hmac_string[SHA_DIGEST_LENGTH + 1];
-	unsigned char	hmac1_string[SHA_DIGEST_LENGTH + 1];
 	int				offset;
 	int				bin_code;
+	unsigned char	hexa_key[(key.length() / 2) + 1];
 
-	memset(hmac_string, 0, SHA_DIGEST_LENGTH + 1);
-	memset(hmac1_string, 0, SHA_DIGEST_LENGTH + 1);
-	hmac_calculator(key, time_ref, hmac1_string);
 	time_ref = 0;
 	time_ref = (time(NULL)) / TIME_STEPS;
 
+	//42 system is little endian so we reverse 
 	uint32_t	endianness = 0xdeadbeef;
 	if ((*(const uint8_t *)&endianness) == 0xef)
 	{
@@ -168,33 +115,11 @@ void		hotp_calculator(std::string key,uint64_t time_ref)
 		time_ref = ((time_ref & 0x00ff00ff00ff00ff) <<  8) | ((time_ref & 0xff00ff00ff00ff00) >>  8);
 	};
 
-	std::cout << "========================" << std::endl;
-	std::cout << key.c_str() <<std::endl;
-	std::cout << "========================" << std::endl;
-	for (int y = 0; y < strlen((char*)key.c_str()); y++)
-		printf("%x ", (key.c_str())[y]);
-	
-	char test[3];
-	test[0] = key.c_str()[0];
-	test[1] = key.c_str()[1];
-	test[2] = 0;
-	char res;
 	//convertir la chaine key en hexa, puis la nourrir au hmac ! :)	
-	res = 0;
-	res = (unsigned char)strtol(test, NULL, 16);
-	printf("\ntest = %x\n", (unsigned char)res);
-	std::cout <<std::endl << "key len = " << key.length() << std::endl;
-	std::cout << std::endl;
-	printf("time\n%lu\n", time_ref);
-
-	hmac_result = (uint8_t*)HMAC(EVP_sha1(), (unsigned char*)key.c_str(), key.length()/2, (unsigned char*)&time_ref,
-		sizeof(time_ref), NULL, NULL);
+	to_hexa(key.c_str(), key.length(), hexa_key);	
+	hmac_result = (uint8_t*)HMAC(EVP_sha1(), (unsigned char*)hexa_key, key.length()/2,
+			(unsigned char*)&time_ref, sizeof(time_ref), NULL, NULL);
 	
-	std::cout << "hmac = ";
-	for (unsigned int i = 0; i < 20; i++)
-		printf("%x", hmac_result[i]);
-	
-
 	//get the lower 4 bits and convert them to int, that shloud contain result 
 	//between 0 & 15
 	offset = hmac_result[19] & 0xf;
@@ -206,34 +131,22 @@ void		hotp_calculator(std::string key,uint64_t time_ref)
            | (hmac_result[offset+3] & 0xff) ;
 	
 	bin_code %= 1000000;
-	std::cout << std::endl<< bin_code << std::endl;
-	offset = hmac1_string[19] & 0xf;
-	//then we get bytes starting at offset, but we mask the first one to avoid
-	//signed-unsigned convertion problem
-	bin_code = (hmac1_string[offset]  & 0x7f) << 24
-           | (hmac1_string[offset+1] & 0xff) << 16
-           | (hmac1_string[offset+2] & 0xff) <<  8
-           | (hmac1_string[offset+3] & 0xff) ;
-	
-	bin_code %= 1000000;
-	std::cout << "deux " << bin_code << std::endl;
-
+	std::cout << std::setw(6) << std::setfill('0') << bin_code << std::endl;
 }
 
 
 void		generate_password(void)
 {
-//	unsigned int		i;
+	unsigned int		i;
 	
 	std::string	key = file_manager("ft_otp.key", std::ios_base::in, NULL);
 	if (key.empty())
 		ft_error(3);
-/*	i = 0;
+	i = 0;
 	while (std::isxdigit(key[i]))
 		++i;
 	if (i != key.length() || i < 64)
 		ft_error(2);
-*/
 
 	hotp_calculator(key, time_steps_calculator());
 }
@@ -247,7 +160,8 @@ void		stock_new_key(char  *in_file)
 	i = 0;
 	while (std::isxdigit(key[i]))
 		++i;
-	if (i != key.length() || i < 64)
+	if (i != key.length() || i < 64 ||
+			(i == key.length() - 1 && key[i] == '\n'))
 		ft_error(2);
 	file_manager("ft_otp.key", std::ios_base::trunc | std::ios_base::out, key.c_str());
 }

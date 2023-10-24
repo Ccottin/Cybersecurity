@@ -6,7 +6,7 @@
 /*   By: ccottin <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/10/13 19:45:03 by ccottin           #+#    #+#             */
-/*   Updated: 2023/10/20 14:53:39 by ccottin          ###   ########.fr       */
+/*   Updated: 2023/10/24 15:02:51 by ccottin          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,7 @@
 # define TIME_STEPS 30
 # define NB_DIGITS 6
 
+#include <iomanip>
 # include <cstdlib>
 # include <iostream>
 # include <fstream>
